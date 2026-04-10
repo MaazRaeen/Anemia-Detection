@@ -53,10 +53,26 @@ for train_index, test_index in skf.split(X, y):
     
     train_df, val_df = train_test_split(outer_train_df, test_size=0.1, random_state=42, stratify=outer_train_df['label'])
 
-    df_majority = train_df[train_df.label == 'Non-Anemic']
-    df_minority = train_df[train_df.label == 'Anemic']
-    df_minority_upsampled = resample(df_minority, replace=True, n_samples=len(df_majority), random_state=42)
+    df_majority = train_df[train_df.label == 0]
+    df_minority = train_df[train_df.label == 1]
+
+# ✅ FIX: handle empty class
+    if len(df_majority) == 0 or len(df_minority) == 0:
+        print(f"⚠️ Skipping fold {fold_no} due to missing class")
+        fold_no += 1
+        continue
+
+    df_minority_upsampled = resample(
+        df_minority,
+        replace=True,
+        n_samples=len(df_majority),
+        random_state=42
+)
+    print(train_df['label'].value_counts())
     df_upsampled = pd.concat([df_majority, df_minority_upsampled])
+    df_upsampled['label'] = df_upsampled['label'].astype(str)
+    val_df['label'] = val_df['label'].astype(str)
+    test_df['label'] = test_df['label'].astype(str)
 
     train_datagen = ImageDataGenerator(preprocessing_function=preprocess_input, rotation_range=30, width_shift_range=0.2, shear_range=0.2, zoom_range=0.2, horizontal_flip=True)
     val_test_datagen = ImageDataGenerator(preprocessing_function=preprocess_input)
@@ -103,7 +119,11 @@ print("\n--- Cross-Validation Complete ---")
 print(f"Average Accuracy: {np.mean(all_scores)*100:.2f}% (+/- {np.std(all_scores)*100:.2f}%)")
 
 # --- NEW: Calculate and Display Aggregate MSE ---
-mse = mean_squared_error(all_true_labels, all_pred_probs)
+if len(all_true_labels) > 0:
+    mse = mean_squared_error(all_true_labels, all_pred_probs)
+    print(f"MSE: {mse}")
+else:
+    print("⚠️ No predictions available")
 print(f"Aggregate Mean Squared Error (MSE): {mse:.4f}\n")
 
 print("--- Aggregate Classification Report ---")
